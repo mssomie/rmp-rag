@@ -1,21 +1,23 @@
 import { NextResponse } from "next/server";
 import { Pinecone } from "@pinecone-database/pinecone";
 import Groq from "groq-sdk";
-import { pipeline } from '@xenova/transformers';
 
+// Define the system prompt
 const systemPrompt = `
-You are a virtual assistant designed to help students find and evaluate professors based on their queries...
- return in JSON format`;
+You are a rate my professor agent to help students find classes, that takes in user questions and answers them.
+For every user question, the top 3 professors that match the user question are returned.
+Use them to answer the question if needed.
+ `;
  
+//  Define parameters to connect to the embedding model
 const axios = require("axios");
 const modelId= "sentence-transformers/all-MiniLM-L6-v2";
 const apiUrl = `https://api-inference.huggingface.co/pipeline/feature-extraction/${modelId}`;
 
 
-
+// Function to query the embedding model and get the response.
 async function query(texts){
     try{
-        console.log("prints here ")
         const response = await axios.post(apiUrl, 
             {
             inputs: texts,
@@ -35,17 +37,23 @@ async function query(texts){
 }
 
 export async function POST(req) {
-    // try {
-        console.log("First things first")
-        const data = await req.json();
+
+    let data;
+    try {
+        // parse incoming data as json
+        data = await req.json();
+        
+    
+        // Connect to index in vector database
         const pc = new Pinecone({
             apiKey: process.env.PINECONE_API_KEY,
         });
         const index = pc.Index("rmp-rag").namespace("ns1");
 
-        // Load the transformers pipeline
+        console.log(`data:  ${data}, data.length: ${data.messages.length}, data.messages: ${data.messages.length}`)
         
-        const text = data[data.length - 1].content;
+        const text =  data.messages[data.messages.length - 1].content;
+        console.log('text', text)
 
         const embedding = await query(text);
 
@@ -55,7 +63,7 @@ export async function POST(req) {
             vector: embedding,
         });
        
-
+        console.log('results', results)
         let resultString = '\n \n Returned result from vector db';
         results.matches.forEach((match) => {
             resultString += `
@@ -70,7 +78,7 @@ export async function POST(req) {
         console.log(resultString)
         console.log('data: ', data)
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
+        data = data.messages
         const lastMessage = data[data.length - 1];
         const lastMessageContent = lastMessage.content + resultString;
         const lastDataWithoutLastMessage = data.slice(0, data.length - 1);
@@ -79,19 +87,38 @@ export async function POST(req) {
             const completion = await groq.chat.completions.create({
                 messages: [{
                     role: 'system', content: systemPrompt
-                }, ...lastDataWithoutLastMessage,
+                }, 
+                ...lastDataWithoutLastMessage,
                 { role: 'user', content: lastMessageContent }],
                 model: 'llama3-70b-8192',
-                response_format: { type: 'json_object' }
+                top_p: 1, 
+                stream: true
             });
-            console.log('Completion content:', JSON.parse(completion.choices[0].message.content));
-             // const result = JSON.parse(completion.choices[0].message.content); // Ensure this content is valid JSON
-            const result = JSON.parse(completion.choices[0].message.content);
+           
             
     
-        console.log(result);
+        
 
-        return  NextResponse.json(result);
+        const stream = new ReadableStream({
+            async start(controller){
+                const encoder = new TextEncoder();
+                try{
+                    for await (const chunk of completion){
+                        const content = chunk.choices[0]?.delta?.content;
+                        if (content){
+                            const text = encoder.encode(content);
+                            controller.enqueue(text);
+                        }
+                    }
+                }catch(error){
+                    controller.error(error);
+                }finally{
+                    controller.close()
+                }
+            }
+        })
+
+        return  new NextResponse(stream);
             
         }catch(err){
 
@@ -102,13 +129,13 @@ export async function POST(req) {
 
        
 
-    // } catch (error) {
-    //     console.error("Error in /api/chat:", error);
-    //     return NextResponse.json({
-    //         message: "Error",
-    //         error: error.message || "An unknown error occurred.",
-    //     }, {
-    //         status: 500,
-    //     });
-    // }
+    } catch (error) {
+        console.error("Error in /api/chat:", error);
+        return NextResponse.json({
+            message: "Error",
+            error: error.message || "An unknown error occurred.",
+        }, {
+            status: 500,
+        });
+    }
 }

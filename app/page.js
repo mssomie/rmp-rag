@@ -34,28 +34,47 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(updatedMessages),
+        body: JSON.stringify({messages: [...messages, {role: 'user', content: message}]}),
       });
   
 
-      const data = await response.json(); 
+      // const data = await response.json(); 
 
-      let assistantMessage ='';
+      // let assistantMessage ='';
 
-      if(data.professors){
-        assistantMessage = data.professors.map(prof=>
-          `Professor: ${prof.name}\nReview: ${prof.review}\nSubject: ${prof.subject}\nStars: ${prof.stars}\n\n`
+      // if(data.professors){
+      //   assistantMessage = data.professors.map(prof=>
+      //     `Professor: ${prof.name}\nReview: ${prof.review}\nSubject: ${prof.subject}\nStars: ${prof.stars}\n\n`
 
-        ).join('');
-      }else{
-        assistantMessage = data.result
-      }
+      //   ).join('');
+      // }else{
+      //   assistantMessage = data.result
+      // }
 
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder();
 
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        {role: 'assistant', content: assistantMessage}
-      ]);
+      let result='';
+      reader.read().then(function processText({done, value}){
+        if (done){
+          return result;
+        }
+
+        const text = decoder.decode(value || new unit8Array(), {stream: true});
+        result+=text;
+      
+
+      setMessages((prevMessages) => {
+        const updatedMessages = [...prevMessages];
+        const lastMessage = updatedMessages[updatedMessages.length - 1];
+        lastMessage.content+=text;;
+        return updatedMessages;
+        // {role: 'assistant', content: assistantMessage}
+      });
+      return reader.read().then(processText);
+
+    });
+    setMessage('')
   
     } catch (error) {
       console.error("Error in sendMessage:", error);
