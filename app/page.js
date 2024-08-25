@@ -1,5 +1,5 @@
 'use client'
-import { Box, TextField, Stack, Button } from "@mui/material";
+import { Typography, Box, TextField, Stack, Button } from "@mui/material";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -15,18 +15,18 @@ export default function Home() {
    const [message, setMessage]=useState('')
 
    const sendMessage = async () => {
+    // Prevent sending empty messages
+    if (!message.trim()) return;
     
     const userMessage = {role: 'user', content: message};
-    const updatedMessages = [...messages, userMessage]
-    setMessages(updatedMessages);
 
     setMessage('');
-    // 
-    // setMessages((messages) => [
-    //   ...messages,
-    //   { role: 'user', content: message },
-    //   { role: 'assistant', content: '' },
-    // ]);
+    
+    setMessages((messages) => [
+      ...messages,
+      { role: 'user', content: message },
+      { role: 'assistant', content: '' },
+    ]);
   
     try {
       const response = await fetch('/api/chat', {
@@ -37,20 +37,7 @@ export default function Home() {
         body: JSON.stringify({messages: [...messages, {role: 'user', content: message}]}),
       });
   
-
-      // const data = await response.json(); 
-
-      // let assistantMessage ='';
-
-      // if(data.professors){
-      //   assistantMessage = data.professors.map(prof=>
-      //     `Professor: ${prof.name}\nReview: ${prof.review}\nSubject: ${prof.subject}\nStars: ${prof.stars}\n\n`
-
-      //   ).join('');
-      // }else{
-      //   assistantMessage = data.result
-      // }
-
+      // Read and decode the message gotten from the server-side
       const reader = response.body.getReader()
       const decoder = new TextDecoder();
 
@@ -64,21 +51,30 @@ export default function Home() {
         result+=text;
       
 
-      setMessages((prevMessages) => {
-        const updatedMessages = [...prevMessages];
-        const lastMessage = updatedMessages[updatedMessages.length - 1];
-        lastMessage.content+=text;;
-        return updatedMessages;
-        // {role: 'assistant', content: assistantMessage}
-      });
+        
+          console.log("received text chunk:", text)
+          result+= text;
+          setMessages((prevMessages) => {
+            const updatedMessages = [...prevMessages];
+            const lastMessage = updatedMessages[updatedMessages.length - 1];
+            if (!lastMessage.content.includes(text)){
+              lastMessage.content+=text;
+
+            }
+            return updatedMessages;
+          });
+
+    
+     
       return reader.read().then(processText);
 
     });
+
     setMessage('')
   
     } catch (error) {
       console.error("Error in sendMessage:", error);
-      // Handle the error appropriately
+      
     }
   };
   
@@ -108,9 +104,9 @@ export default function Home() {
           maxHeight="100%" >
           {messages.map((message, index)=>(
             <Box key={index} display="flex" justifyContent={message.role==="assistant"? "flex-start": "flex-end"}>
-              <Box bgcolor={message.role==="assistant"? "primary.main": "secondary.main"}>
+              <Box bgcolor={message.role==="assistant"? "primary.main": "secondary.main"} borderRadius={16} p={3}>
               
-                {message.content}
+                <Typography style={{whiteSpace: 'pre-line'}}>{message.content}</Typography>
               </Box>
 
             </Box>
