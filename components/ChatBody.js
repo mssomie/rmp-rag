@@ -3,6 +3,7 @@ import { Bot, User } from "lucide-react";
 import { Avatar, Box } from "@mui/material";
 
 export const ChatBody = ({ messages }) => {
+  console.log(messages);
   return (
     <Box
       sx={{
@@ -49,7 +50,7 @@ export const ChatBody = ({ messages }) => {
                   minWidth: "7%",
                   borderRadius: "8px",
                   maxWidth: { md: "55%", xs: "80%" },
-                  padding: "12px",
+                  padding: { md: "20px", xs: "10px" },
                   backgroundColor: "#071536",
                   backdropFilter: "blur(25px)",
                   border: "1px solid rgba(255, 255, 255, 0.5)",
