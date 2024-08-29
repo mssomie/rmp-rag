@@ -16,7 +16,8 @@ const ChatPage = () => {
     },
   ]);
 
-  const sendMessage = async () => {
+  const sendMessage = async (e) => {
+    e.preventDefault();
     // Prevent sending empty messages
     if (!message.trim()) return;
 
